@@ -98,20 +98,19 @@ Break one of these and data become silently wrong or the server rejects them.
   `monitor/yarrow_monitor.c:76-96`).
 * **Writes.** The whole file, through `.tmp` and `boinc_rename` (`yarrow_boinc.cpp:79-89`), after every finished bin
   (also every gap-filled bin), after every successful send, every 60 s while a detector is attached, before the
-  no-detector exit and at the end of the loop. Known defects of these writes are open issues:
-  `python3 docs/kb/shared/kb.py list --open --area checkpoint`.
+  no-detector exit and at the end of the loop. Nothing is checked (YAR-005), no write is inside a critical section, and
+  `boinc_checkpoint_completed()` follows every write without `boinc_time_to_checkpoint()` (YAR-007).
 * **Sends.** `flush()` takes the first chunk, calls `boinc_send_trickle_up()`, then drops the chunk and saves. Delivery
   is at least once: a quit between the send and the save sends the chunk again after the restart, and the server keeps
-  the first count it received ([docs/boinc-monitor.md](docs/boinc-monitor.md) "Principles").
-  A send just before an exit can be lost (PAT-009).
+  the first count it received ([docs/boinc-monitor.md](docs/boinc-monitor.md) "Principles"; YAR-028). A send just before
+  an exit is lost (YAR-006).
 * **Resume.** Read the state. With a valid `D` line the identity is restored and leftovers are sent at once; without one
   the pending bins are dropped. If the first counter found differs in uid, calibration or interval, one chunk is sent
-  and the rest dropped ([YAR-024](docs/kb/issues/YAR-024-pending-bins-dropped-on-identity-change.md)).
+  and the rest dropped (YAR-024).
 * **Exits.** Quit and abort are normally carried out by the BOINC library itself (default `direct_process_action`, no
-  critical section). Temporary exits: settings missing 1 h,
-  no counter for 5 min then 30 min, lock held by another monitor 2 h
-  ([YAR-020](docs/kb/issues/YAR-020-temporary-exit-durations.md)). The client aborts a task after more than 100
-  temporary exits without a reported checkpoint, about 2.5 days without a counter (PAT-030).
+  critical section); the loop's own quit branch ends in `boinc_finish(0)` (YAR-004). Temporary exits: settings missing
+  1 h, no counter for 5 min then 30 min, lock held by another monitor 2 h (YAR-020). The client aborts a task after more
+  than 100 temporary exits without a reported checkpoint, about 2.5 days without a counter (YAR-030).
 
 ## Building
 
@@ -161,17 +160,15 @@ Cargo tests in `hub/crates/yarrow-core/tests/`; the repository does not document
 
 ## Environment notes
 
-* `gcc` on macOS is Apple clang. `make check` passes; for `make monitor`, see `python3 docs/kb/shared/kb.py list --open --area build`.
-* The Makefile and `tools/buildall.sh` call `python`, which must be Python 3
-  ([YAR-022](docs/kb/issues/YAR-022-makefile-calls-python-not-python3.md)).
+* `gcc` on macOS is Apple clang. `make check` passes; `make monitor` stops at `monitor/yarrow_watch.c:73-74` with
+  `-Werror` (YAR-026).
+* The Makefile and `tools/buildall.sh` call `python`, which must be Python 3 (YAR-022).
 * `tools/buildall.sh` is bash and defaults to `MAKE=mingw32-make`; elsewhere run it with `MAKE=make`.
   `tools/sanitize.sh` needs GNU grep (`grep -P`).
 * Under a BOINC client on Linux and macOS the worker thread gets SIGALRM ten times a second; the tests and the
-  command-line host do not. Every wait and read must retry on EINTR with the remaining time, as
-  `yser_sleep_ms()` and `yser_read()` do ([YAR-003](docs/kb/issues/YAR-003-eintr-from-boinc-sigalrm-cuts-waits-and-reads.md),
-  pattern PAT-010).
-* Windows: COM1 to COM64 are probed; a serial read needs a total timeout or it waits forever
-  ([YAR-002](docs/kb/issues/YAR-002-windows-serial-read-waits-forever.md)).
+  command-line host do not. Every wait and read must retry on EINTR with the remaining time, as `yser_sleep_ms()` and
+  `yser_read()` do (YAR-003, pattern PAT-010).
+* Windows: COM1 to COM64 are probed; a serial read needs a total timeout or it waits forever (YAR-002).
 * Linux device access for the BOINC user: [docs/linux.md](docs/linux.md) and the gotchas in [docs/kb/INDEX.md](docs/kb/INDEX.md).
 * Hub: Rust 1.88 or newer (`hub/app/Cargo.toml:6`), Tauri 2, Node for `hub/app/ui/`. Hardware: KiCad (`kicad-cli`; the
   helper scripts look in `/usr/share/kicad`) and OpenSCAD.
@@ -196,19 +193,16 @@ Cargo tests in `hub/crates/yarrow-core/tests/`; the repository does not document
 
 ## Knowledge base
 
-`docs/kb/` holds this repository's known bugs, platform traps and their fixes, and the bug patterns shared with the
-other bitboinc applications. This file names only rules, gotchas and design notes; the open issues are in the
-knowledge base, and the tool prints them more cheaply than the files:
+`docs/kb/` holds this repository's known bugs and platform traps, and the bug patterns shared with the other bitboinc
+applications. Workflow: [docs/kb/shared/PROCESS.md](docs/kb/shared/PROCESS.md).
 
-- What is ready to fix, one line each with its next step: `python3 docs/kb/shared/kb.py list --open --action fix`
-  (also `--area checkpoint`, `--platform windows`, `--action decide|verify|review`). Then read that issue's file and
-  the pattern it links (its "How to fix").
-- Across the bitboinc repositories checked out next to this one: `kb.py todo ../<repo> ...` groups their open issues
-  by shared pattern, so a fix is read once and made everywhere; `kb.py check PAT-NNN ../<repo> ...` checks a pattern.
-- Before debugging a symptom: `grep -ril "<words>" docs/kb ../*/docs/kb/issues`.
+- Ready to fix, with next steps: `python3 docs/kb/shared/kb.py list --open --action fix` (also `--area`,
+  `--platform`); then the issue's file and the pattern it links.
+- All repositories checked out next to this one: `kb.py todo`, then `kb.py todo --pattern PAT-NNN` for the next step
+  and place of each issue; `kb.py check PAT-NNN` checks a pattern everywhere.
+- Before debugging a symptom: `grep -ril "<words>" ../*/docs/kb/issues docs/kb/shared/patterns`.
 - New report: `kb.py new issue "symptom in a few words" area=... next=...`.
-- After a fix: `kb.py set YAR-NNN status=fix-proposed` (or `status=fixed fixed_in=<commit>` once merged) with
-  `--log "..."`; the ledger and INDEX.md follow. The commit names the issue (`KB: YAR-NNN`) and, if any, the
-  pattern (`Pattern: PAT-NNN`).
-- Before a pull request: `python3 docs/kb/shared/kb.py index && python3 docs/kb/shared/kb.py lint --strict`.
-  Workflow: [docs/kb/shared/PROCESS.md](docs/kb/shared/PROCESS.md).
+- After a fix: `kb.py set YAR-NNN status=fix-proposed --log "..."` (`status=fixed fixed_in=<commit>` once merged),
+  and update the lines of this file it prints. The commit names the issue (`KB: YAR-NNN`) and the pattern, if any
+  (`Pattern: PAT-NNN`).
+- Before a pull request: `kb.py index && kb.py lint --strict`.
