@@ -98,24 +98,20 @@ Break one of these and data become silently wrong or the server rejects them.
   `monitor/yarrow_monitor.c:76-96`).
 * **Writes.** The whole file, through `.tmp` and `boinc_rename` (`yarrow_boinc.cpp:79-89`), after every finished bin
   (also every gap-filled bin), after every successful send, every 60 s while a detector is attached, before the
-  no-detector exit and at the end of the loop. Nothing is checked ([YAR-005](docs/kb/issues/YAR-005-state-file-write-unchecked-and-reported-anyway.md)),
-  no write is inside a critical section, and `boinc_checkpoint_completed()` follows every write without
-  `boinc_time_to_checkpoint()` ([YAR-007](docs/kb/issues/YAR-007-state-written-on-own-cadence-outside-critical-section.md)).
+  no-detector exit and at the end of the loop. Known defects of these writes are open issues:
+  `python3 docs/kb/shared/kb.py list --open --area checkpoint`.
 * **Sends.** `flush()` takes the first chunk, calls `boinc_send_trickle_up()`, then drops the chunk and saves. Delivery
   is at least once: a quit between the send and the save sends the chunk again after the restart, and the server keeps
-  the first count it received ([docs/boinc-monitor.md](docs/boinc-monitor.md) "Principles";
-  [YAR-028](docs/kb/issues/YAR-028-question-server-dedupe-for-every-counter-type.md)). A send just before an exit is
-  lost ([YAR-006](docs/kb/issues/YAR-006-trickle-lost-when-the-task-exits-right-after-a-send.md)).
+  the first count it received ([docs/boinc-monitor.md](docs/boinc-monitor.md) "Principles").
+  A send just before an exit can be lost (PAT-009).
 * **Resume.** Read the state. With a valid `D` line the identity is restored and leftovers are sent at once; without one
   the pending bins are dropped. If the first counter found differs in uid, calibration or interval, one chunk is sent
   and the rest dropped ([YAR-024](docs/kb/issues/YAR-024-pending-bins-dropped-on-identity-change.md)).
 * **Exits.** Quit and abort are normally carried out by the BOINC library itself (default `direct_process_action`, no
-  critical section); the loop's own quit branch ends in `boinc_finish(0)`
-  ([YAR-004](docs/kb/issues/YAR-004-quit-or-abort-ends-in-boinc-finish-0.md)). Temporary exits: settings missing 1 h,
+  critical section). Temporary exits: settings missing 1 h,
   no counter for 5 min then 30 min, lock held by another monitor 2 h
   ([YAR-020](docs/kb/issues/YAR-020-temporary-exit-durations.md)). The client aborts a task after more than 100
-  temporary exits without a reported checkpoint, about 2.5 days without a counter
-  ([YAR-030](docs/kb/issues/YAR-030-repeated-temporary-exits-hit-the-client-limit.md)).
+  temporary exits without a reported checkpoint, about 2.5 days without a counter (PAT-030).
 
 ## Building
 
@@ -165,8 +161,7 @@ Cargo tests in `hub/crates/yarrow-core/tests/`; the repository does not document
 
 ## Environment notes
 
-* `gcc` on macOS is Apple clang. `make check` passes; `make monitor` stops at `monitor/yarrow_watch.c:73-74` with
-  `-Werror` ([YAR-026](docs/kb/issues/YAR-026-make-monitor-fails-with-clang-werror.md)).
+* `gcc` on macOS is Apple clang. `make check` passes; for `make monitor`, see `python3 docs/kb/shared/kb.py list --open --area build`.
 * The Makefile and `tools/buildall.sh` call `python`, which must be Python 3
   ([YAR-022](docs/kb/issues/YAR-022-makefile-calls-python-not-python3.md)).
 * `tools/buildall.sh` is bash and defaults to `MAKE=mingw32-make`; elsewhere run it with `MAKE=make`.
@@ -202,11 +197,18 @@ Cargo tests in `hub/crates/yarrow-core/tests/`; the repository does not document
 ## Knowledge base
 
 `docs/kb/` holds this repository's known bugs, platform traps and their fixes, and the bug patterns shared with the
-other bitboinc applications. Start at [docs/kb/INDEX.md](docs/kb/INDEX.md): its first table, "Fix next", is the work
-that is ready, with the next step for each issue. Before debugging a symptom, search it (`grep -ril "<words>" docs/kb`).
-After a fix or a new finding, update the issue. Workflow: [docs/kb/shared/PROCESS.md](docs/kb/shared/PROCESS.md).
+other bitboinc applications. This file names only rules, gotchas and design notes; the open issues are in the
+knowledge base, and the tool prints them more cheaply than the files:
 
-- Overview without opening files: `python3 docs/kb/shared/kb.py list --open [--platform windows] [--area checkpoint]`
-- New report: `python3 docs/kb/shared/kb.py new issue "symptom in a few words"`
-- A fix commit names its issue (`KB: YAR-NNN`) and, if any, its pattern (`Pattern: PAT-NNN`).
-- Before a pull request: `python3 docs/kb/shared/kb.py index && python3 docs/kb/shared/kb.py lint --strict`
+- What is ready to fix, one line each with its next step: `python3 docs/kb/shared/kb.py list --open --action fix`
+  (also `--area checkpoint`, `--platform windows`, `--action decide|verify|review`). Then read that issue's file and
+  the pattern it links (its "How to fix").
+- Across the bitboinc repositories checked out next to this one: `kb.py todo ../<repo> ...` groups their open issues
+  by shared pattern, so a fix is read once and made everywhere; `kb.py check PAT-NNN ../<repo> ...` checks a pattern.
+- Before debugging a symptom: `grep -ril "<words>" docs/kb ../*/docs/kb/issues`.
+- New report: `kb.py new issue "symptom in a few words" area=... next=...`.
+- After a fix: `kb.py set YAR-NNN status=fix-proposed` (or `status=fixed fixed_in=<commit>` once merged) with
+  `--log "..."`; the ledger and INDEX.md follow. The commit names the issue (`KB: YAR-NNN`) and, if any, the
+  pattern (`Pattern: PAT-NNN`).
+- Before a pull request: `python3 docs/kb/shared/kb.py index && python3 docs/kb/shared/kb.py lint --strict`.
+  Workflow: [docs/kb/shared/PROCESS.md](docs/kb/shared/PROCESS.md).
