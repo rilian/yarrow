@@ -52,7 +52,7 @@ never uploads), the website (`site/`) and the hardware designs (`hardware/`).
 | `site/` | project website (`build.py` renders, `app.py` serves) |
 | `hardware/` | open hardware: `basic/` (KiCad board and scripts), `stand/` (OpenSCAD dock); see [hardware/README.md](hardware/README.md) |
 | `docs/` | user and developer documentation (table in [README.md](README.md#documentation)) |
-| `third_party/` | vendored fonts with their licences (Inter; Noto CJK is fetched, see its README) |
+| `third_party/` | vendored fonts with their licences (Inter; Noto CJK is fetched from a moving branch, see its README, and rendered with an unpinned Pillow, YAR-031) |
 
 ## Invariants
 
@@ -104,7 +104,8 @@ Break one of these and data become silently wrong or the server rejects them.
   is at least once: a quit between the send and the save sends the chunk again after the restart, and the server keeps
   the first count it received ([docs/boinc-monitor.md](docs/boinc-monitor.md) "Principles"; YAR-028). A send just before
   an exit is lost (YAR-006).
-* **Resume.** Read the state. With a valid `D` line the identity is restored and leftovers are sent at once; without one
+* **Resume.** Read the state; a state file that exists but cannot be opened counts as no state, and the next save
+  overwrites it (YAR-008). With a valid `D` line the identity is restored and leftovers are sent at once; without one
   the pending bins are dropped. If the first counter found differs in uid, calibration or interval, one chunk is sent
   and the rest dropped (YAR-024).
 * **Exits.** Quit and abort are normally carried out by the BOINC library itself (default `direct_process_action`, no
@@ -197,12 +198,15 @@ Cargo tests in `hub/crates/yarrow-core/tests/`; the repository does not document
 applications. Workflow: [docs/kb/shared/PROCESS.md](docs/kb/shared/PROCESS.md).
 
 - Ready to fix, with next steps: `python3 docs/kb/shared/kb.py list --open --action fix` (also `--area`,
-  `--platform`); then the issue's file and the pattern it links.
+  `--platform`). Then `kb.py show YAR-NNN` for the issue and `kb.py show PAT-NNN` for the pattern it links, with the
+  BOINC API facts the pattern cites. In the code, read the functions that `where:` and the Cause name.
 - All repositories checked out next to this one: `kb.py todo`, then `kb.py todo --pattern PAT-NNN` for the next step
   and place of each issue; `kb.py check PAT-NNN` checks a pattern everywhere.
-- Before debugging a symptom: `grep -ril "<words>" ../*/docs/kb/issues docs/kb/shared/patterns`.
+- Before debugging a symptom: `grep -ril "<words>" ../*/docs/kb/issues docs/kb/shared/patterns`, then `kb.py show`
+  the ids it finds. Read other repositories through the shell (`kb.py show`, `git -C ../<repo> grep -n`, `sed -n`):
+  opening one of their files in an editor tool can load their whole AGENTS.md as well.
 - New report: `kb.py new issue "symptom in a few words" area=... next=...`.
 - After a fix: `kb.py set YAR-NNN status=fix-proposed --log "..."` (`status=fixed fixed_in=<commit>` once merged),
-  and update the lines of this file it prints. The commit names the issue (`KB: YAR-NNN`) and the pattern, if any
+  and update the passages of this file it prints. The commit names the issue (`KB: YAR-NNN`) and the pattern, if any
   (`Pattern: PAT-NNN`).
 - Before a pull request: `kb.py index && kb.py lint --strict`.
