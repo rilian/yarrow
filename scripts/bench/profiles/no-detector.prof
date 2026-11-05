@@ -1,0 +1,10 @@
+# Nothing is plugged in (a volunteer who has not attached a counter yet), a week of it, with two serial ports of other devices
+# that never answer. The monitor looks every 15 s (the Yarrow ports, the Radioactive@Home HID device, then <GETVER>> to every
+# serial port at two baud rates), waits in 500 ms steps between looks, and after 5 minutes asks for a temporary exit of 30
+# minutes. Under BOINC the process is gone during the exit; the simulation moves the clock instead.
+source none
+interval 600
+hours 168
+cpm 20
+seed 1
+foreign_ports 2

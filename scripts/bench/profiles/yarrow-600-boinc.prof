@@ -1,0 +1,9 @@
+# The same, as under the BOINC client: the library's timer signal (10 Hz) ends every sleep and poll early, and the monitor's
+# loops start the wait again with the time left (docs/kb/shared/boinc-api.md, YAR-003). The wake-ups of the timer itself are
+# a floor that no change to the monitor can lower; this profile shows how much of the total the monitor's own waits are.
+source yarrow
+interval 600
+hours 72
+cpm 20
+seed 1
+sigalrm 10

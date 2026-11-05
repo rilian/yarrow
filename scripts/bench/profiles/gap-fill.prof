@@ -1,0 +1,11 @@
+# The monitor starts after 13 days without running (BACKFILL_MAX_AGE_S, the longest gap it fills). The detector's log holds
+# one sample a minute for all of it. The monitor reads all 31 log pages as base64 text, cuts about 1870 bins, keeps the newest
+# 1008 (YAR-025), saves the state file after every bin, and then sends the backlog 144 slots every 10 minutes: 2 simulated hours
+# cover the fill and the first sends. link_bps is an assumption (USB serial bulk transfers of the firmware's 192-byte chunks).
+source yarrow
+interval 600
+hours 2
+cpm 20
+seed 1
+absent_hours 312
+link_bps 100000

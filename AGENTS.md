@@ -29,12 +29,12 @@ never uploads), the website (`site/`) and the hardware designs (`hardware/`).
 | `monitor/yarrow_standalone.c` | command-line host: prints `TRICKLE <xml>` lines instead of sending; SIGINT/SIGTERM end it |
 | `monitor/yarrow_bin.[ch]` | bin cutter: only exact bins, never estimated or padded |
 | `monitor/yarrow_trickle.[ch]` | pending queue (1008 bins), trickle XML, state text, country/city check |
-| `monitor/yarrow_backfill.[ch]` | bins from the detector's flash log (gap fill), LOGPAGE base64 decoding |
+| `monitor/yarrow_backfill.[ch]` | bins from the detector's flash log (gap fill), LOGPAGE base64 decoding (stops at an `END` inside the text, YAR-033) |
 | `monitor/yarrow_src.[ch]` | source interface; search order Yarrow, Radioactive@Home, GQ GMC; GMC port scan |
 | `monitor/yarrow_src_yarrow.c` | Yarrow firmware source: INFO, UID, COUNTS, CAL, TIME, clock fix, log read-back |
 | `monitor/yarrow_src_rah.c` | Radioactive@Home source (HID feature report of 129 bytes, 9 on the PIC board, whose buzzer and backlight it switches off; bin edges on the host clock) |
 | `monitor/yarrow_src_gmc.c`, `yarrow_gmc.h` | GQ GMC source (`<GETVER>>`, `<GETCFG>>`, one heartbeat per second; byte order learned from the first heartbeats, a smoothed-rate stream refused, a count summary in stderr.txt that is cut short, YAR-032) |
-| `monitor/yarrow_serial.[ch]` | serial ports on Windows and POSIX: open, line commands, raw reads, port lists, monotonic clock, sleep |
+| `monitor/yarrow_serial.[ch]` | serial ports on Windows and POSIX: open, line commands, raw reads, port lists, monotonic clock, sleep (POSIX reads a reply in blocks through a per-port buffer, YAR-035) |
 | `monitor/yarrow_hid.[ch]` | HID feature reports (get, set): Linux hidraw, Windows hid.dll, a stub elsewhere; wall clock and host name |
 | `monitor/yarrow_lock.[ch]` | one monitor per BOINC data directory |
 | `monitor/test_*.c` | host tests run by `make monitor-check` |
@@ -46,6 +46,7 @@ never uploads), the website (`site/`) and the hardware designs (`hardware/`).
 | `sim/sim.c` | screen simulator (`make sim`) |
 | `canary/` | bring-up images ([docs/bringup.md](docs/bringup.md)) |
 | `tools/` | font generator, image finaliser, ARM emulator tests, Python log decoder, translation tools, `yarrow.py` (serial CLI), `buildall.sh`, `sanitize.sh` |
+| `scripts/bench/` | monitor benchmark: `fake/` (a fake counter, serial layer and host built around the real monitor files, on a virtual clock), `profiles/*.prof`, `build_variant.sh`, `run_bench.sh`, `summarize_bench.py`, `ab.sh` (one command: upstream's default branch against the working tree); method and results in [docs/BENCHMARK.md](docs/BENCHMARK.md) |
 | `assets/fonts.spec` | which glyphs go into the firmware fonts |
 | `hub/` | Yarrow Hub, a Rust workspace: `crates/yarrow-core` (protocol, GC-03/R@H/GMC drivers, Rust ports of `ylog`/`ylc`, bins), `crates/yarrow-store`, `app/` (Tauri) with `app/ui/` (TypeScript) |
 | `linux/` | udev rule and setup script that let the BOINC user open the counters ([docs/linux.md](docs/linux.md)) |
@@ -97,7 +98,7 @@ Break one of these and data become silently wrong or the server rejects them.
   the detector's own log (at most 13 days, same uid, calibration and interval, clock not reset when found;
   `monitor/yarrow_monitor.c:76-96`).
 * **Writes.** The whole file, through `.tmp` and `boinc_rename` (`yarrow_boinc.cpp:79-89`), after every finished bin
-  (also every gap-filled bin), after every successful send, every 60 s while a detector is attached, before the
+  (a gap fill saves once, after its last bin: YAR-035), after every successful send, every 60 s while a detector is attached, before the
   no-detector exit and at the end of the loop. Nothing is checked (YAR-005), no write is inside a critical section, and
   `boinc_checkpoint_completed()` follows every write without `boinc_time_to_checkpoint()` (YAR-007).
 * **Sends.** `flush()` takes the first chunk, calls `boinc_send_trickle_up()`, then drops the chunk and saves. Delivery
@@ -150,6 +151,7 @@ bash tools/sanitize.sh   # every make-check test again with ASan and UBSan (gcc 
 | `src/ylog.c`, `src/ylc.c` | `make check`, `make hostcheck`, the hub's decode test |
 | other `src/`, `hal/` | `make check`, `make`, `make test`, `make sim` |
 | `linux/` | compare the rule file with the copy in the setup script |
+| a speed, wake-up, state-write or trickle-count change in `monitor/` | the method in [docs/BENCHMARK.md](docs/BENCHMARK.md): `scripts/bench/ab.sh` against upstream's default branch; claim a gain only by its rule, show `same output` or say how the trickles or the state file differ (the firmware has no benchmark: hardware only) |
 
 Not covered by any test: `monitor/yarrow_boinc.cpp` (there is no BOINC stub), real serial and HID I/O, the Windows code,
 quit and abort, trickle pick-up, and the BOINC timer signal (only `test_rah.c` simulates a shortened wait). A monitor

@@ -1,0 +1,9 @@
+# A Yarrow detector (USB serial) on a computer with no BOINC timer signal, 600 s bins (the shortest the preferences offer),
+# 72 simulated hours of steady monitoring. About 20 counts a minute (a small tube at background). The cost here is the poll
+# every second, the poll every 100 ms around each bin edge, the calibration check every minute, the state file after every
+# bin and every minute, and one trickle every 10 minutes. Wall time of the run is the cost of the simulation, not a metric.
+source yarrow
+interval 600
+hours 72
+cpm 20
+seed 1

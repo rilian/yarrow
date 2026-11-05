@@ -1,0 +1,7 @@
+# A GQ GMC counter (USB serial, one heartbeat of two bytes a second): the read of the next heartbeat is the wait, and the loop
+# does not sleep. Same counts as the Yarrow profiles; the bins are cut on the host's clock.
+source gmc
+interval 600
+hours 72
+cpm 20
+seed 1

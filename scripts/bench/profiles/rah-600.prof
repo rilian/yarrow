@@ -1,0 +1,7 @@
+# A Radioactive@Home counter (HID feature report, no clock of its own): one report a second, one every 40 ms around the edges,
+# bins cut on the host's clock. Same counts as the Yarrow profiles.
+source rah
+interval 600
+hours 72
+cpm 20
+seed 1

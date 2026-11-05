@@ -41,3 +41,6 @@ When code that a row describes changes a lot, check the pattern again and update
 | PAT-028 | not-affected | 2026-11-03 | 2c1dbb4 | YAR-015 | monitor/: no -D feature flags, only OS guards; HID exists for Linux and Windows, other OSes get a silent stub (yarrow_hid.c:350-356), no macOS monitor known to ship; firmware: -DYLOG_MAX_PAGE=4096 (Makefile:28) matches FLASH_SECTOR 0x1000 (hal/gc03/image.h:22), one build script |
 | PAT-029 | affected | 2026-10-27 | 78b1446 | YAR-031 | third_party/noto-cjk/README.md:8-10 fetches the CJK fonts from raw/main, docs/building.md:8 pip install pillow unpinned, both feed font_data.c of released firmware |
 | PAT-030 | affected | 2026-10-27 | 78b1446 | YAR-030 | no detector: 300 s search then boinc_temporary_exit(1800) (monitor/yarrow_boinc.cpp:129) without a checkpoint the client sees: aborted after about 2.5 days |
+| PAT-031 | n/a | 2026-11-04 | ea3ab38 |  | no thread_local or __thread in monitor/ or src/ (git grep) |
+| PAT-032 | not-affected | 2026-11-04 | ea3ab38 |  | the monitor has no hot loop: it sleeps between polls (docs/BENCHMARK.md measures wake-ups and system calls) |
+| PAT-033 | n/a | 2026-11-04 | ea3ab38 |  | no GPU code |

@@ -1,0 +1,6 @@
+# Hour bins: six times fewer bin edges, so nearly all the cost is the poll between the edges (every second today).
+source yarrow
+interval 3600
+hours 72
+cpm 20
+seed 1

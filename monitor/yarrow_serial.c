@@ -88,7 +88,10 @@ static int port_name(int i, char *out, size_t cap)
 #include <unistd.h>
 #include <poll.h>
 
-struct yser { int fd; };
+/* buf holds bytes read from the port but not handed out yet: rd() reads what is there in one read() instead of one
+ * byte per poll() and read() (2026-11-04, docs/BENCHMARK.md "Results"). Bytes after the end of a reply (a live-stream
+ * line, the next reply) stay here for the next call, as they stayed in the driver's buffer before. */
+struct yser { int fd; size_t pos, len; unsigned char buf[256]; };
 
 yser_t *yser_open(const char *path)
 {
@@ -108,6 +111,7 @@ yser_t *yser_open(const char *path)
         return NULL;
     }
     s->fd = fd;
+    s->pos = s->len = 0;
     return s;
 }
 
@@ -121,8 +125,20 @@ void yser_close(yser_t *s)
 
 static int rd(yser_t *s, char *c)
 {
+    if (s->pos < s->len) {
+        *c = (char)s->buf[s->pos++];
+        return 1;
+    }
     struct pollfd p = {s->fd, POLLIN, 0};
-    return poll(&p, 1, 20) > 0 && read(s->fd, c, 1) == 1;      /* a signal only shortens the 20 ms: the caller asks again */
+    if (poll(&p, 1, 20) <= 0)                                    /* a signal only shortens the 20 ms: the caller asks again */
+        return 0;
+    ssize_t r = read(s->fd, s->buf, sizeof s->buf);
+    if (r <= 0)
+        return 0;
+    s->len = (size_t)r;
+    s->pos = 1;
+    *c = (char)s->buf[0];
+    return 1;
 }
 
 static int wr(yser_t *s, const char *p, size_t n) { return write(s->fd, p, n) == (ssize_t)n; }
@@ -345,6 +361,8 @@ int yser_write(yser_t *s, const void *p, size_t n) { return write(s->fd, p, n) =
 int yser_read(yser_t *s, void *buf, size_t n, int timeout_ms)
 {
     size_t got = 0;
+    while (got < n && s->pos < s->len)                 /* what rd() has already read from the port comes first */
+        ((unsigned char *)buf)[got++] = s->buf[s->pos++];
     double end = yser_now() + timeout_ms / 1000.0;
     while (got < n) {
         double left = end - yser_now();
@@ -368,6 +386,7 @@ int yser_read(yser_t *s, void *buf, size_t n, int timeout_ms)
 
 void yser_drain(yser_t *s)
 {
+    s->pos = s->len = 0;
     char junk[256];
     while (yser_read(s, junk, sizeof junk, 30) > 0)
         ;

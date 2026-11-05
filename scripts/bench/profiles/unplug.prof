@@ -1,0 +1,11 @@
+# The cable is pulled one hour into 6 hours of monitoring and plugged in again 90 minutes later. The monitor loses the counter,
+# searches every 15 s for 5 minutes (probing the serial port of another device on the way), takes a temporary exit for 30
+# minutes, searches again, finds the counter and fills the gap from its log. One foreign serial port that never answers.
+source yarrow
+interval 600
+hours 6
+cpm 20
+seed 1
+unplug_at 3600
+unplug_for 5400
+foreign_ports 1

@@ -31,11 +31,20 @@ static struct {
 
 static void save_state(void);
 
+/* Bins that fill_gap() added since its last save. While a gap is filled from the detector's log, on_bin() does not save
+ * the state file after every bin (a 13-day gap is about 1870 bins, each a full rewrite of the file): fill_gap() saves
+ * once at the end. A crash in between loses nothing, because the next start fills the same gap again from the same log
+ * (the last-seen time is not moved by a gap fill). 2026-11-04, docs/BENCHMARK.md "Results". */
+static int filling_gap, gap_bins;
+
 static void on_bin(void *ctx, uint32_t start, uint32_t count)
 {
     (void)ctx;
     ypending_add(&pending, start, count);
-    save_state();                  /* a finished bin survives a crash or a closed window */
+    if (filling_gap)
+        gap_bins++;
+    else
+        save_state();              /* a finished bin survives a crash or a closed window */
 }
 
 static void save_state(void)
@@ -85,7 +94,12 @@ static void fill_gap(ysrc_t *src, uint32_t interval)
         from = (now - BACKFILL_MAX_AGE_S + interval - 1) / interval * interval;
     if (from + interval > until)
         return;
+    filling_gap = 1;
+    gap_bins = 0;
     int n = src->backfill(src, interval, from, until, on_bin, 0);
+    filling_gap = 0;
+    if (gap_bins > 0)
+        save_state();
     char line[120];
     if (n > 0) {
         snprintf(line, sizeof line, "the detector's log filled %d bins that were missed while this program was not running", n);
